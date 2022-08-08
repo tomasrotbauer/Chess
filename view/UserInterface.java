@@ -88,10 +88,13 @@ public class UserInterface implements MouseListener {
     public void makeMove(int row1, int col1, int row2, int col2, int moveType) {
         ChessPiece from = board.getPiece(row1, col1);
         ChessPiece to = board.getPiece(row2, col2);
-        board.movePiece(row1, col1, row2, col2);
+        ChessPiece enPassant = board.movePiece(row1, col1, row2, col2);
         
         if (to != null)
             removeLayeredComponent(to.getLabel());
+
+        if (enPassant != null)
+            removeLayeredComponent(enPassant.getLabel());
         
         JLabel label = from.getLabel();
         label.setBounds(col2*112,row2*112,112,112);
@@ -119,7 +122,7 @@ public class UserInterface implements MouseListener {
             label.setBounds(col2*112,row2*112,112,112);
             layeredPane.add(label, Integer.valueOf(2));
         }
-        layeredPane.setLayer(label, Integer.valueOf(2));
+        layeredPane.setLayer(label, 2);
     }
     
     public void mouseEntered(MouseEvent e) {
@@ -129,7 +132,7 @@ public class UserInterface implements MouseListener {
     }
     
     public void mousePressed(MouseEvent e) {
-        if (!board.isPlayerTurn())
+        if (board.isComputerTurn())
             return;
 
         int col = e.getX() / 112;
@@ -151,7 +154,7 @@ public class UserInterface implements MouseListener {
     }
     
     public void mouseReleased(MouseEvent e) {
-        if (!board.isPlayerTurn())
+        if (board.isComputerTurn())
             return;
 
         int col = e.getX() / 112;

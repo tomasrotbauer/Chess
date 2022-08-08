@@ -1,14 +1,16 @@
 package controller;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+
 import model.*;
 
 public class Controller implements Runnable {
     
     private final boolean isComputerWhite;
-    private static final int DEPTH = 6;
+    private static final int DEPTH = 4;
     public int row1, col1, row2, col2;
-    private char[][] root;
+    private final char[][] root;
     private int score;
     private boolean blackKingCastle, blackQueenCastle, whiteKingCastle, whiteQueenCastle;
     
@@ -82,8 +84,8 @@ public class Controller implements Runnable {
         for (int i = 0; i < max; i+=4) {
             makeMove(position, child, positions, i);
             eval = -negamax(child, depth-1, -beta, -alpha, -colour);
-            value = eval > value ? eval : value;
-            alpha = value > alpha ? value : alpha;
+            value = Math.max(eval, value);
+            alpha = Math.max(value, alpha);
             if (alpha >= beta)
                 break;
         }
@@ -94,9 +96,7 @@ public class Controller implements Runnable {
         int switchWith = 0;
         int temp;
         for (int i = 0; i < positions.size(); i+=4) {
-            if (positions.get(i+2) < 0)
-                continue;
-            else if (position[positions.get(i+2)][positions.get(i+3)] != 'e') {
+            if (positions.get(i+2) >= 0 && position[positions.get(i+2)][positions.get(i+3)] != 'e') {
                 if (switchWith == i)
                     switchWith += 4;
                 else
@@ -126,8 +126,8 @@ public class Controller implements Runnable {
             for (int i = 0; i < positions.size(); i+=4) {
                 makeMove(position, child, positions, i);
                 eval = minimax(child, depth - 1, alpha, beta, false, true);
-                maxEval = eval > maxEval ? eval : maxEval;
-                alpha = alpha > maxEval ? alpha : maxEval;
+                maxEval = Math.max(eval, maxEval);
+                alpha = Math.max(alpha, maxEval);
                 if (maxEval >= beta)
                     break;
             }
@@ -140,8 +140,8 @@ public class Controller implements Runnable {
             for (int i = 0; i < positions.size(); i+=4) {
                 makeMove(position, child, positions, i);
                 eval = minimax(child, depth - 1, alpha, beta, true, true);                
-                minEval = minEval < eval ? minEval : eval;
-                beta = beta < minEval ? beta : minEval;
+                minEval = Math.min(minEval, eval);
+                beta = Math.min(beta, minEval);
                 if (minEval <= alpha)
                     break;
             }
@@ -157,11 +157,11 @@ public class Controller implements Runnable {
     
     private void printChild(char[][] child) {
         for (int i = 0; i < 8; i++) {
-            System.out.println("");
+            System.out.println();
             for (int j = 0; j < 8; j++)
                 System.out.print(child[i][j]);
         }
-        System.out.println("");
+        System.out.println();
     }
     
     private int staticEvaluation(char[][] position, int options, boolean maximizingPlayer, int depth) {
@@ -173,36 +173,40 @@ public class Controller implements Runnable {
                 return 0;
         }
         char piece;
-        int score = 0;
+        int score = 0, rowScore = 0;
         //First, assume computer is black
         for (int row = 0; row < 8; row++)
             for (int col = 0; col < 8; col++) {
                 piece = position[row][col];
-                if (piece == 'e')
-                    continue;
-                else if (piece == 'P')
-                    score += 100;
-                else if (piece == 'p')
-                    score -= 100;
-                else if (piece == 'B')
-                    score += 300;
-                else if (piece == 'b')
-                    score -= 300;
-                else if (piece == 'N')
-                    score += 300;
-                else if (piece == 'n')
-                    score -= 300;
-                else if (piece == 'R')
-                    score += 500;
-                else if (piece == 'r')
-                    score -= 500;
-                else if (piece == 'Q')
-                    score += 900;
-                else if (piece == 'q')
-                    score -= 900;
+                if (piece != 'e') {
+                    if (piece < 97)
+                        rowScore += row;
+                    if (piece == 'P' || piece == 'A')
+                        score += 100;
+                    else if (piece == 'p' || piece == 'a')
+                        score -= 100;
+                    else if (piece == 'B')
+                        score += 300;
+                    else if (piece == 'b')
+                        score -= 300;
+                    else if (piece == 'N')
+                        score += 300;
+                    else if (piece == 'n')
+                        score -= 300;
+                    else if (piece == 'R')
+                        score += 500;
+                    else if (piece == 'r')
+                        score -= 500;
+                    else if (piece == 'Q')
+                        score += 900;
+                    else if (piece == 'q')
+                        score -= 900;
+                }
             }
-            
-        return isComputerWhite ? -score : score;
+        score = isComputerWhite ? -score : score;
+        score += maximizingPlayer ? options : -options;
+
+        return score;
     }
     
     public void getAllPositions(ArrayList<Integer> positions, char[][] position, boolean maximizingPlayer) {
@@ -212,40 +216,40 @@ public class Controller implements Runnable {
             for (int row = 0; row < 8; row++)
                 for (int col = 0; col < 8; col++) {
                     piece = position[row][col];
-                    if (piece > 90)
-                        continue;
-                    else if (piece == 'P')
-                        calc.pawn(row, col, maximizingPlayer);
-                    else if (piece == 'B')
-                        calc.bishop(row, col);
-                    else if (piece == 'N')
-                        calc.knight(row, col);
-                    else if (piece == 'R')
-                        calc.rook(row, col);
-                    else if (piece == 'Q')
-                        calc.queen(row, col);
-                    else
-                        calc.king(row, col, maximizingPlayer, blackKingCastle, blackQueenCastle);
+                    if (piece <= 90) {
+                        if (piece == 'P' || piece == 'A')
+                            calc.pawn(row, col, maximizingPlayer);
+                        else if (piece == 'B')
+                            calc.bishop(row, col);
+                        else if (piece == 'N')
+                            calc.knight(row, col);
+                        else if (piece == 'R')
+                            calc.rook(row, col);
+                        else if (piece == 'Q')
+                            calc.queen(row, col);
+                        else
+                            calc.king(row, col, maximizingPlayer, blackKingCastle, blackQueenCastle);
+                    }
                 }
         }
         else {
             for (int row = 0; row < 8; row++)
                 for (int col = 0; col < 8; col++) {
                     piece = position[row][col];
-                    if (piece == 'e' || piece < 97)
-                        continue;
-                    else if (piece == 'p')
-                        calc.pawn(row, col, maximizingPlayer);
-                    else if (piece == 'b')
-                        calc.bishop(row, col);
-                    else if (piece == 'n')
-                        calc.knight(row, col);
-                    else if (piece == 'r')
-                        calc.rook(row, col);
-                    else if (piece == 'q')
-                        calc.queen(row, col);
-                    else
-                        calc.king(row, col, maximizingPlayer, whiteKingCastle, whiteQueenCastle);
+                    if (piece != 'e' && piece >= 97) {
+                        if (piece == 'p' || piece == 'a')
+                            calc.pawn(row, col, maximizingPlayer);
+                        else if (piece == 'b')
+                            calc.bishop(row, col);
+                        else if (piece == 'n')
+                            calc.knight(row, col);
+                        else if (piece == 'r')
+                            calc.rook(row, col);
+                        else if (piece == 'q')
+                            calc.queen(row, col);
+                        else
+                            calc.king(row, col, maximizingPlayer, whiteKingCastle, whiteQueenCastle);
+                    }
                 }
         }
     }
@@ -262,17 +266,19 @@ public class Controller implements Runnable {
         col2 = positions.get(i+3);
         
         child[row1][col1] = 'e';
+
+        char piece = position[row1][col1];
         
         // king side castle
         if (row2 == -1) {
             if (isComputerWhite) {
                 child[row1][0] = 'e';
-                child[row1][1] = position[row1][col1];
+                child[row1][1] = piece;
                 child[row1][2] = position[row1][0];
             }
             else {
             child[row1][7] = 'e';
-            child[row1][6] = position[row1][col1];
+            child[row1][6] = piece;
             child[row1][5] = position[row1][7];
             }
         }
@@ -280,22 +286,51 @@ public class Controller implements Runnable {
         else if (row2 == -2) {
             if (isComputerWhite) {
                 child[row1][7] = 'e';
-                child[row1][5] = position[row1][col1];
+                child[row1][5] = piece;
                 child[row1][4] = position[row1][7];
             }
             else {
                 child[row1][0] = 'e';
-                child[row1][2] = position[row1][col1];
+                child[row1][2] = piece;
                 child[row1][3] = position[row1][0];
             }
         }
         //promotion
-        else if (position[row1][col1] == 'p' && (row2 == 0 || row2 == 7))
+        else if (piece == 'p' && (row2 == 0 || row2 == 7))
             child[row2][col2] = 'q';
-        else if (position[row1][col1] == 'P' && (row2 == 0 || row2 == 7))
+        else if (piece == 'P' && (row2 == 0 || row2 == 7))
             child[row2][col2] = 'Q';
+        else if (piece == 'p' && Math.abs(row1-row2) == 2)
+            child[row2][col2] = 'a';
+        else if (piece == 'P' && Math.abs(row1-row2) == 2)
+            child[row2][col2] = 'A';
+        else if (piece == 'p' && Math.abs(col1-col2) == 1 && position[row1][col2] == 'A') {
+            child[row1][col2] = 'e';
+            child[row2][col2] = piece;
+            return;
+        }
+        else if (piece == 'P' && Math.abs(col1-col2) == 1 && position[row1][col2] == 'a') {
+            child[row1][col2] = 'e';
+            child[row2][col2] = piece;
+            return;
+        }
         else
             child[row2][col2] = position[row1][col1];
+
+        for (int j = 0; j < 7; j++) {
+            if (!(row2 == 3 && col2 == j)) {
+                if (child[3][j] == 'a')
+                    child[3][j] = 'p';
+                else if (child[3][j] == 'A')
+                    child[3][j] = 'P';
+            }
+            if (!(row2 == 4 && col2 == j)) {
+                if (child[4][j] == 'a')
+                    child[4][j] = 'p';
+                else if (child[4][j] == 'A')
+                    child[4][j] = 'P';
+            }
+        }
     }
     
     public int validatePlayerMove(ChessBoard board, ChessPiece selectedPiece, int row, int col) {

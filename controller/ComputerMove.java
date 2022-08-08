@@ -6,10 +6,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.Random;
 import java.util.ArrayList;
-    
+
 public class ComputerMove {
-    private Controller controller;
-    private ChessBoard board;
+    private final Controller controller;
+    private final ChessBoard board;
     public int row1, col1, row2, col2, moveType;
     
     public ComputerMove(Controller controller, ChessBoard board) {

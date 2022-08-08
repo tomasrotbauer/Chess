@@ -3,17 +3,14 @@ package controller;
 import java.util.ArrayList;
 
 public class MoveCalculator {
-    private char[][] board;
-    private char[][] tempBoard;
-    private boolean isWhite;
-    private boolean maximizingPlayer;
-    private ArrayList<Integer> moves;
-    private Validator validator;
+    private final char[][] board;
+    private final boolean isWhite;
+    private final ArrayList<Integer> moves;
+    private final Validator validator;
     
     public MoveCalculator(char[][] board, boolean isWhite, boolean maximizingPlayer, ArrayList<Integer> moves) {
         this.board = board;        
         this.isWhite = isWhite;
-        this.maximizingPlayer = maximizingPlayer;
         this.moves = moves;
         this.validator = new Validator(board, isWhite, maximizingPlayer);
     }
@@ -84,16 +81,44 @@ public class MoveCalculator {
             testMove(row, col, row+move, col);
 
         if (isWhite) {
-            if (col > 0 && board[row+move][col-1] < 97)
-                testMove(row, col, row+move, col-1);
-            if (col < 7 && board[row+move][col+1] < 97)
-                testMove(row, col, row+move, col+1);
+            if (col > 0) {
+                if (board[row + move][col - 1] < 97)
+                    testMove(row, col, row + move, col - 1);
+                if (board[row][col - 1] == 'A') {
+                    board[row][col-1]='e';
+                    testMove(row, col, row + move, col - 1);
+                    board[row][col-1]='A';
+                }
+            }
+            if (col < 7) {
+                if (board[row+move][col+1] < 97)
+                    testMove(row, col, row + move, col + 1);
+                if (board[row][col+1] == 'A') {
+                    board[row][col+1]='e';
+                    testMove(row, col, row + move, col + 1);
+                    board[row][col+1]='A';
+                }
+            }
         }
         else {
-            if (col > 0 && board[row+move][col-1] > 90 && board[row+move][col-1] != 'e')
-                testMove(row, col, row+move, col-1);
-            if (col < 7 && board[row+move][col+1] > 90 && board[row+move][col+1] != 'e')
-                testMove(row, col, row+move, col+1);
+            if (col > 0) {
+                if (board[row + move][col - 1] > 90 && board[row + move][col - 1] != 'e')
+                    testMove(row, col, row + move, col - 1);
+                if (board[row][col - 1] == 'a') {
+                    board[row][col-1]='e';
+                    testMove(row, col, row + move, col - 1);
+                    board[row][col-1]='a';
+                }
+            }
+            if (col < 7) {
+                if(board[row+move][col+1] > 90 && board[row+move][col+1] != 'e')
+                    testMove(row, col, row+move, col+1);
+                if (board[row][col+1] == 'a') {
+                    board[row][col+1]='e';
+                    testMove(row, col, row + move, col + 1);
+                    board[row][col+1]='a';
+                }
+            }
         }
         
         board[row][col] = isWhite ? 'p' : 'P';
@@ -217,23 +242,23 @@ public class MoveCalculator {
             if (row == startRow && col == 4 && !validator.isKingInCheck(board)) {
                 //king side
                 if (kingCastle && board[startRow][7] == rook && board[startRow][5] == 'e' && board[startRow][6] == 'e')
-                    castle(true, false, startRow, king, rook);
+                    castle(true, false, startRow, king);
                 //queen side
                 if (queenCastle && board[startRow][0] == rook && board[startRow][1] == 'e' && board[startRow][2] == 'e' && board[startRow][3] == 'e')
-                    castle(false, false, startRow, king, rook);
+                    castle(false, false, startRow, king);
             }
         }
         else if (row == startRow && col == 3 && !validator.isKingInCheck(board)) {
             //king side
             if (kingCastle && board[startRow][0] == rook && board[startRow][1] == 'e' && board[startRow][2] == 'e')
-                castle(true, true, startRow, king, rook);
+                castle(true, true, startRow, king);
             //queen side
             if (queenCastle && board[startRow][7] == rook && board[startRow][6] == 'e' && board[startRow][5] == 'e' && board[startRow][4] == 'e')
-                castle(false, true, startRow, king, rook);
+                castle(false, true, startRow, king);
         }
     }
     
-    private void castle(boolean kingSide, boolean maxWhite, int startRow, char king, char rook) {
+    private void castle(boolean kingSide, boolean maxWhite, int startRow, char king) {
         int empty1, empty2, kingStart = maxWhite ? 3 : 4, move = kingSide ^ maxWhite ? 1 : -1;
         if (maxWhite) {
             if (kingSide) {
@@ -283,8 +308,8 @@ public class MoveCalculator {
 class Validator {
     private int kingRow;
     private int kingCol;
-    private boolean isKingWhite;
-    private boolean maximizingPlayer;
+    private final boolean isKingWhite;
+    private final boolean maximizingPlayer;
     
     Validator(char[][] board, boolean isKingWhite, boolean maximizingPlayer) {
         this.isKingWhite = isKingWhite;
@@ -435,8 +460,7 @@ class Validator {
         if (kingRow < 6) {
             if (kingCol > 0 && board[kingRow+2][kingCol-1] == knight)
                 return true;
-            if (kingCol < 7 && board[kingRow+2][kingCol+1] == knight)
-                return true;
+            return kingCol < 7 && board[kingRow + 2][kingCol + 1] == knight;
         }
         
         return false;

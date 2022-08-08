@@ -3,8 +3,8 @@ package model;
 import javax.swing.*;
 
 public class ChessPiece {
-    private char symbol;
-    private JLabel label;
+    private final char symbol;
+    private final JLabel label;
     private int row;
     private int col;
 
