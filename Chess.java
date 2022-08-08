@@ -13,7 +13,7 @@ public class Chess {
         ChessBoard board = new ChessBoard(isPlayerWhite);
         board.initialize();
         UserInterface window = new UserInterface(board);
-        window.drawBoard(isPlayerWhite);
+        window.drawBoard();
         window.drawPieces();
         
         if (!isPlayerWhite)
