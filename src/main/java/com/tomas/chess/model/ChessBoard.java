@@ -1,4 +1,4 @@
-package model;
+package com.tomas.chess.model;
 
 public class ChessBoard {
     private final ChessPiece[][] board;

@@ -1,8 +1,10 @@
-package model;
+package com.tomas.chess.model;
 
 import javax.swing.*;
+import java.util.Objects;
 
 public class ChessPiece {
+    public static String sep = System.getProperty("file.separator");
     private final char symbol;
     private final JLabel label;
     private int row;
@@ -15,11 +17,11 @@ public class ChessPiece {
 
         String filename;
         if (symbol > 90) //white piece
-            filename = "view/pieces/w" + symbol + ".png";
+            filename = "w" + symbol + ".png";
         else
-            filename = "view/pieces/b" + symbol + ".png";
+            filename = "b" + symbol + ".png";
 
-        ImageIcon img = new ImageIcon(filename);
+        ImageIcon img = new ImageIcon(Objects.requireNonNull(getClass().getResource(sep + "pieces" + sep + filename)));
         this.label = new JLabel(img);
     }
 

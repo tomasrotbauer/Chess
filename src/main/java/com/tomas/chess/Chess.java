@@ -1,5 +1,7 @@
-import model.*;
-import view.*; 
+package com.tomas.chess;
+
+import com.tomas.chess.model.ChessBoard;
+import com.tomas.chess.view.*;
 
 public class Chess {
    

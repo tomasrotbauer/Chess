@@ -1,11 +1,12 @@
-package view;
+package com.tomas.chess.view;
 
-import controller.*;
-import model.*;
+import com.tomas.chess.controller.*;
+import com.tomas.chess.model.*;
 import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
 import java.util.ArrayList;
+import java.util.Objects;
 
 public class UserInterface implements MouseListener {
     private final JLayeredPane layeredPane;
@@ -34,7 +35,7 @@ public class UserInterface implements MouseListener {
         this.board = board;
         selectedPiece = null;
         
-        ImageIcon cyanSquare = new ImageIcon("view/highlight.png");
+        ImageIcon cyanSquare = new ImageIcon(Objects.requireNonNull(getClass().getResource(ChessPiece.sep + "highlight.png")));
         highlight = new JLabel(cyanSquare);
         layeredPane.add(highlight, Integer.valueOf(-1));
         
@@ -46,7 +47,7 @@ public class UserInterface implements MouseListener {
     }
     
     public void drawBoard() {
-        ImageIcon bgnd = new ImageIcon("view/background.png");
+        ImageIcon bgnd = new ImageIcon(Objects.requireNonNull(getClass().getResource(ChessPiece.sep + "background.png")));
         JLabel bgndLabel = new JLabel(bgnd);
         bgndLabel.setBounds(0,0,896,896);
         layeredPane.add(bgndLabel, Integer.valueOf(0));

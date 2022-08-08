@@ -1,9 +1,8 @@
-package controller;
+package com.tomas.chess.controller;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
-import model.*;
+import com.tomas.chess.model.*;
 
 public class Controller implements Runnable {
     
@@ -110,7 +109,7 @@ public class Controller implements Runnable {
         }
     }
     
-    public int minimax(char[][] position, int depth, int alpha, int beta, boolean maximizingPlayer, boolean recursiveCall) {
+    public int minimax(char[][] position, int depth, int alpha, int beta, boolean maximizingPlayer) {
         ArrayList<Integer> positions = new ArrayList<>();
         getAllPositions(positions, position, maximizingPlayer);
         orderMoves(position, positions);
@@ -125,7 +124,7 @@ public class Controller implements Runnable {
             int eval;
             for (int i = 0; i < positions.size(); i+=4) {
                 makeMove(position, child, positions, i);
-                eval = minimax(child, depth - 1, alpha, beta, false, true);
+                eval = minimax(child, depth - 1, alpha, beta, false);
                 maxEval = Math.max(eval, maxEval);
                 alpha = Math.max(alpha, maxEval);
                 if (maxEval >= beta)
@@ -139,7 +138,7 @@ public class Controller implements Runnable {
             int eval;
             for (int i = 0; i < positions.size(); i+=4) {
                 makeMove(position, child, positions, i);
-                eval = minimax(child, depth - 1, alpha, beta, true, true);                
+                eval = minimax(child, depth - 1, alpha, beta, true);
                 minEval = Math.min(minEval, eval);
                 beta = Math.min(beta, minEval);
                 if (minEval <= alpha)
