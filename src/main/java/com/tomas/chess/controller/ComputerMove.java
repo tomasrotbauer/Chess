@@ -39,8 +39,12 @@ public class ComputerMove {
                                 controller.canWhiteCastle(-1), controller.canWhiteCastle(-2)};
             Controller ctrlr = new Controller(child, move, !board.isPlayerWhite(), castle);
             controllers.add(ctrlr);
-            Thread t = new Thread(ctrlr);
-            exec.submit(t);
+            if (ChessBoard.positionOccurrences(child) == 2)
+                ctrlr.drawByRepetition();
+            else {
+                Thread t = new Thread(ctrlr);
+                exec.submit(t);
+            }
         }
         
         exec.shutdown();

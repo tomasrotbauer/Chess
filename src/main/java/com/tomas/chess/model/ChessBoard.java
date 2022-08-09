@@ -1,6 +1,9 @@
 package com.tomas.chess.model;
 
+import java.util.*;
+
 public class ChessBoard {
+    private static final Map<String, Integer> positionHash = new HashMap<>();
     private final ChessPiece[][] board;
     private final char[][] symbolBoard;
     private boolean playerTurn;
@@ -113,11 +116,14 @@ public class ChessBoard {
 */
         
         for (int i = 0; i < 8; i++)
-            for (int j = 0; j < 8; j++)
+            for (int j = 0; j < 8; j++) {
                 if (board[i][j] == null)
                     symbolBoard[i][j] = 'e';
                 else
                     symbolBoard[i][j] = board[i][j].getSymbol();
+            }
+
+        positionHash.put(hash(symbolBoard), 1);
     }
     
     public ChessPiece movePiece(int startRow, int startCol, int endRow, int endCol) {
@@ -184,6 +190,33 @@ public class ChessBoard {
                     symbolBoard[4][j] = 'P';
             }
         }
+
+        String hash = hash(symbolBoard);
+        if (positionHash.containsKey(hash)) {
+            if (positionHash.get(hash) == 2) {
+                System.out.println("Draw by repetition.");
+            }
+            else
+                positionHash.put(hash, positionHash.get(hash) + 1);
+        }
+        else
+            positionHash.put(hash, 1);
         return enPassant;
+    }
+
+    public static int positionOccurrences(char[][] position) {
+        String hash = hash(position);
+        if (positionHash.containsKey(hash))
+            return positionHash.get(hash);
+
+        return 0;
+    }
+
+    private static String hash(char[][] position) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 8; i++)
+            for (int j = 0; j < 8; j++)
+                sb.append(position[i][j]);
+        return sb.toString();
     }
 }

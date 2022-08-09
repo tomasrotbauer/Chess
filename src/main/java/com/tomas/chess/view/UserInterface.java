@@ -8,8 +8,7 @@ import javax.swing.*;
 import java.util.ArrayList;
 import java.util.Objects;
 
-public class UserInterface implements MouseListener {
-    private final JLayeredPane layeredPane;
+public class UserInterface extends JLayeredPane {
     private final ChessBoard board;
     private final JLabel highlight;
     private ChessPiece selectedPiece;
@@ -17,27 +16,16 @@ public class UserInterface implements MouseListener {
     private final ComputerMove computerMove;
     
     public UserInterface(ChessBoard board) {
-        JFrame frame = new JFrame("Chess");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-        JPanel panel = new JPanel();
-        panel.setPreferredSize(new Dimension(896,896));
-        panel.addMouseListener(this);
-
-        layeredPane = frame.getLayeredPane();
-        layeredPane.setPreferredSize(new Dimension(896,896));
-
-        frame.add(panel);
-        frame.setResizable(false);
-        frame.setVisible(true);
-        frame.pack();
+        addMouseListener(getMouseAdapter());
+        setPreferredSize(new Dimension(896,896));
+        setVisible(true);
         
         this.board = board;
         selectedPiece = null;
         
         ImageIcon cyanSquare = new ImageIcon(Objects.requireNonNull(getClass().getResource(ChessPiece.sep + "highlight.png")));
         highlight = new JLabel(cyanSquare);
-        layeredPane.add(highlight, Integer.valueOf(-1));
+        add(highlight, Integer.valueOf(-1));
         
         int[] move = {-1,-1,-1,-1};
         boolean[] castle = {true, true, true, true};
@@ -50,7 +38,7 @@ public class UserInterface implements MouseListener {
         ImageIcon bgnd = new ImageIcon(Objects.requireNonNull(getClass().getResource(ChessPiece.sep + "background.png")));
         JLabel bgndLabel = new JLabel(bgnd);
         bgndLabel.setBounds(0,0,896,896);
-        layeredPane.add(bgndLabel, Integer.valueOf(0));
+        add(bgndLabel, Integer.valueOf(0));
     }
     
     public void drawPieces() {
@@ -63,25 +51,12 @@ public class UserInterface implements MouseListener {
                     continue;
                 label = piece.getLabel();
                 label.setBounds(j*112,i*112,112,112);
-                layeredPane.add(label, Integer.valueOf(2));
+                add(label, Integer.valueOf(2));
             }
     }
     
     public void removeLayeredComponent(JLabel label) {
-        layeredPane.setLayer(label, -1);
-    }
-    
-    public void mouseClicked(MouseEvent e) {
-    }
-
-    public void computerTurn() {
-        computerMove.makeComputerMove();
-        if (computerMove.moveType == -5)
-            return;
-        makeMove(computerMove.row1, computerMove.col1, computerMove.row2, computerMove.col2, computerMove.moveType);
-        highlight.setBounds(computerMove.col2*112, computerMove.row2*112,112,112);
-        layeredPane.setLayer(highlight, 1);
-        board.setPlayerTurn(true);
+        setLayer(label, -1);
     }
 
     public void makeMove(int row1, int col1, int row2, int col2, int moveType) {
@@ -97,7 +72,7 @@ public class UserInterface implements MouseListener {
 
         JLabel label = from.getLabel();
         label.setBounds(col2*112,row2*112,112,112);
-        layeredPane.setLayer(label, 2);
+        setLayer(label, 2);
 
         if (moveType == -1 && board.isPlayerWhite()) {
             label = board.getPiece(row1, 5).getLabel();
@@ -119,71 +94,97 @@ public class UserInterface implements MouseListener {
             removeLayeredComponent(label);
             label = board.getPiece(row2, col2).getLabel();
             label.setBounds(col2*112,row2*112,112,112);
-            layeredPane.add(label, Integer.valueOf(2));
+            add(label, Integer.valueOf(2));
         }
-        layeredPane.setLayer(label, 2);
+        setLayer(label, 2);
     }
-    
-    public void mouseEntered(MouseEvent e) {
-    }
-    
-    public void mouseExited(MouseEvent e) {
-    }
-    
-    public void mousePressed(MouseEvent e) {
-        if (board.isComputerTurn())
-            return;
 
-        int col = e.getX() / 112;
-        int row = e.getY() / 112;
-        
-        ChessPiece piece = board.getPiece(row, col);
-        
-        if (selectedPiece == null && piece != null) {
-            
-            if (board.isPlayerWhite() && piece.getSymbol() < 97)
-                return;
-            else if (!board.isPlayerWhite() && piece.getSymbol() > 90)
-                return;
-            
-            selectedPiece = piece;
-            highlight.setBounds(col*112,row*112,112,112);
-            layeredPane.setLayer(highlight, 1);
-        }
-    }
-    
-    public void mouseReleased(MouseEvent e) {
-        if (board.isComputerTurn())
-            return;
+    public MouseListener getMouseAdapter() {
+        return new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (board.isComputerTurn())
+                    return;
 
-        int col = e.getX() / 112;
-        int row = e.getY() / 112;
-        
-        if (selectedPiece != null) {
-            
-            if (row == selectedPiece.getRow() && col == selectedPiece.getCol())
-                return;
-            
-            ArrayList<Integer> positions = new ArrayList<>();
-        
-            controller.getAllPositions(positions, board.getSymbolBoard(), false);
-            if (positions.isEmpty()) {
-                System.out.println("Game over");
-                return;
+                int col = e.getX() / 112;
+                int row = e.getY() / 112;
+
+                ChessPiece piece = board.getPiece(row, col);
+
+                if (selectedPiece == null && piece != null) {
+
+                    if (board.isPlayerWhite() && piece.getSymbol() < 97)
+                        return;
+                    else if (!board.isPlayerWhite() && piece.getSymbol() > 90)
+                        return;
+
+                    selectedPiece = piece;
+                    highlight.setBounds(col*112,row*112,112,112);
+                    setLayer(highlight, 1);
+                }
             }
 
-            int validation = controller.validatePlayerMove(board, selectedPiece, row, col);
-            removeLayeredComponent(highlight);
-            
-            if (validation == 0) {
-                selectedPiece = null;
-                return;
-            }
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (board.isComputerTurn())
+                    return;
 
-            makeMove(selectedPiece.getRow(), selectedPiece.getCol(), row, col, validation);
-            selectedPiece = null;
-            board.setPlayerTurn(false);
+                int col = e.getX() / 112;
+                int row = e.getY() / 112;
+
+                if (selectedPiece != null) {
+
+                    if (row == selectedPiece.getRow() && col == selectedPiece.getCol())
+                        return;
+
+                    ArrayList<Integer> positions = new ArrayList<>();
+
+                    controller.getAllPositions(positions, board.getSymbolBoard(), false);
+                    if (positions.isEmpty()) {
+                        System.out.println("Game over");
+                        return;
+                    }
+
+                    int validation = controller.validatePlayerMove(board, selectedPiece, row, col);
+                    removeLayeredComponent(highlight);
+
+                    if (validation == 0) {
+                        selectedPiece = null;
+                        return;
+                    }
+
+                    makeMove(selectedPiece.getRow(), selectedPiece.getCol(), row, col, validation);
+                    selectedPiece = null;
+                    board.setPlayerTurn(false);
+                    computerMove();
+                }
+            }
+        };
+    }
+
+    public void computerMove() {
+        ComputerTurn ct = new ComputerTurn();
+        try {
+            ct.execute();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    public class ComputerTurn extends SwingWorker<Void, Void> {
+        @Override
+        protected Void doInBackground() throws Exception {
             computerTurn();
+            return null;
+        }
+        public void computerTurn() {
+            computerMove.makeComputerMove();
+            if (computerMove.moveType == -5)
+                return;
+            makeMove(computerMove.row1, computerMove.col1, computerMove.row2, computerMove.col2, computerMove.moveType);
+            highlight.setBounds(computerMove.col2*112, computerMove.row2*112,112,112);
+            setLayer(highlight, 1);
+            board.setPlayerTurn(true);
         }
     }
 }

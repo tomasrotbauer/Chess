@@ -35,6 +35,10 @@ public class Controller implements Runnable {
     public int getScore() {
         return score;
     }
+
+    public void drawByRepetition() {
+        score = 0;
+    }
     
     public void blackCannotCastle(int moveType) {
         if (moveType == -1)
