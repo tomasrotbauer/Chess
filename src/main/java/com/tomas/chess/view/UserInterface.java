@@ -139,7 +139,7 @@ public class UserInterface extends JLayeredPane {
 
                     ArrayList<Integer> positions = new ArrayList<>();
 
-                    controller.getAllPositions(positions, board.getSymbolBoard(), false);
+                    controller.getAllPositions(positions, board.getSymbolBoard(), false, true);
                     if (positions.isEmpty()) {
                         System.out.println("Game over");
                         return;

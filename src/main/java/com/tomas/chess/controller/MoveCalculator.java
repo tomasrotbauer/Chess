@@ -5,26 +5,58 @@ import java.util.ArrayList;
 class MoveCalculator {
     private final char[][] board;
     private final boolean isWhite;
+    private final boolean maximizingPlayer;
     private final ArrayList<Integer> moves;
     private final Validator validator;
-    
-    public MoveCalculator(char[][] board, boolean isWhite, boolean maximizingPlayer, ArrayList<Integer> moves) {
+    private final boolean getMoves;
+    private int GV;
+
+    public MoveCalculator(char[][] board, boolean isWhite, boolean maximizingPlayer, ArrayList<Integer> moves, boolean getMoves) {
         this.board = board;        
         this.isWhite = isWhite;
+        this.maximizingPlayer = maximizingPlayer;
         this.moves = moves;
         this.validator = new Validator(board, isWhite, maximizingPlayer);
+        GV = 0;
+        this.getMoves = getMoves;
+    }
+
+    int getGV() {
+        return GV;
+    }
+
+    private int getCaptureStrength(char piece) {
+        if (piece == 'k' || piece == 'K' || piece == 'q' || piece == 'Q')
+            return 1;
+        else if (piece == 'r' || piece == 'R')
+            return 2;
+        else if (piece == 'b' || piece == 'B')
+            return 5;
+        else if (piece == 'n' || piece == 'N')
+            return 6;
+        else
+            return 9;
     }
     
     private void testMove(int row1, int col1, int row2, int col2) {
-        char temp = board[row2][col2];
-        board[row2][col2] = board[row1][col1];
+        char temp = board[row2][col2], piece = board[row1][col1];
+        board[row2][col2] = piece;
         board[row1][col1] = 'e';
         
         if (!validator.isKingInCheck(board)) {
-            moves.add(row1); moves.add(col1); moves.add(row2); moves.add(col2);
+            if (getMoves) {
+                moves.add(row1);
+                moves.add(col1);
+                moves.add(row2);
+                moves.add(col2);
+            }
+            if (maximizingPlayer)
+                GV += getCaptureStrength(piece);
+            else
+                GV -= getCaptureStrength(piece);
         }
         
-        board[row1][col1] = board[row2][col2];
+        board[row1][col1] = piece;
         board[row2][col2] = temp;
     }
     
@@ -71,14 +103,20 @@ class MoveCalculator {
             promotion = 0;
         }
         
-        if (row == startRow && board[opening][col] == 'e' && board[startRow + move][col] == 'e')
+        if (row == startRow && board[opening][col] == 'e' && board[startRow + move][col] == 'e') {
+            int tmpGv = GV;
             testMove(row, col, opening, col);
+            GV = tmpGv;
+        }
         
         if (row+move == promotion)
             board[row][col] = isWhite ? 'q' : 'Q';
         
-        if (board[row+move][col] == 'e')
-            testMove(row, col, row+move, col);
+        if (board[row+move][col] == 'e') {
+            int tmpGv = GV;
+            testMove(row, col, row + move, col);
+            GV = tmpGv;
+        }
 
         if (isWhite) {
             if (col > 0) {

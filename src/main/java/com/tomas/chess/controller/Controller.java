@@ -74,10 +74,10 @@ public class Controller implements Runnable {
     
     public int negamax(char[][] position, int depth, int alpha, int beta, int colour) {
         ArrayList<Integer> positions = new ArrayList<>();
-        getAllPositions(positions, position, colour == 1);
+        int GV = getAllPositions(positions, position, colour == 1, true);
         
         if (depth == 0 || positions.isEmpty())
-            return colour * staticEvaluation(position, positions.size(), colour == 1, DEPTH - depth);
+            return colour * staticEvaluation(position, positions.size(), GV, colour == 1, DEPTH - depth);
         
         orderMoves(position, positions);
         int value = -1000000, eval;
@@ -115,11 +115,11 @@ public class Controller implements Runnable {
     
     public int minimax(char[][] position, int depth, int alpha, int beta, boolean maximizingPlayer) {
         ArrayList<Integer> positions = new ArrayList<>();
-        getAllPositions(positions, position, maximizingPlayer);
+        int GV = getAllPositions(positions, position, maximizingPlayer, true);
         orderMoves(position, positions);
         
         if (depth == 0 || positions.isEmpty())
-            return staticEvaluation(position, positions.size(), maximizingPlayer, DEPTH-depth);
+            return staticEvaluation(position, positions.size(), GV, maximizingPlayer, DEPTH-depth);
         
         char[][] child = new char[8][8];
         
@@ -167,7 +167,7 @@ public class Controller implements Runnable {
         System.out.println();
     }
     
-    private int staticEvaluation(char[][] position, int options, boolean maximizingPlayer, int depth) {
+    private int staticEvaluation(char[][] position, int options, int GV, boolean maximizingPlayer, int depth) {
         if (options == 0) {
             Validator validator = new Validator(position, maximizingPlayer == isComputerWhite, maximizingPlayer);
             if (validator.isKingInCheck(position))
@@ -175,6 +175,9 @@ public class Controller implements Runnable {
             else
                 return 0;
         }
+
+        GV += getAllPositions(new ArrayList<Integer>(), position, !maximizingPlayer, false);
+
         char piece;
         int score = 0, rowScore = 0;
         //First, assume computer is black
@@ -207,14 +210,16 @@ public class Controller implements Runnable {
                 }
             }
         score = isComputerWhite ? -score : score;
-        score += maximizingPlayer ? options : -options;
+        //score += maximizingPlayer ? options : -options;
+        //score += rowScore;
 
-        return score;
+        return score + GV;
     }
     
-    public void getAllPositions(ArrayList<Integer> positions, char[][] position, boolean maximizingPlayer) {
-        MoveCalculator calc = new MoveCalculator(position, maximizingPlayer == isComputerWhite, maximizingPlayer, positions);
+    public int getAllPositions(ArrayList<Integer> positions, char[][] position, boolean maximizingPlayer, boolean getMoves) {
+        MoveCalculator calc = new MoveCalculator(position, maximizingPlayer == isComputerWhite, maximizingPlayer, positions, getMoves);
         char piece;
+        //Computer black
         if (maximizingPlayer ^ isComputerWhite) {
             for (int row = 0; row < 8; row++)
                 for (int col = 0; col < 8; col++) {
@@ -235,6 +240,7 @@ public class Controller implements Runnable {
                     }
                 }
         }
+        //Computer white
         else {
             for (int row = 0; row < 8; row++)
                 for (int col = 0; col < 8; col++) {
@@ -255,6 +261,7 @@ public class Controller implements Runnable {
                     }
                 }
         }
+        return calc.getGV();
     }
     
     public void makeMove(char[][] position, char[][] child, ArrayList<Integer> positions, int i) {
@@ -341,7 +348,7 @@ public class Controller implements Runnable {
         ArrayList<Integer> legalMoves = new ArrayList<>();
         MoveCalculator calc = new MoveCalculator(board.getSymbolBoard(), 
                                 board.isPlayerWhite(),
-                                false, legalMoves);
+                                false, legalMoves, true);
         
         char symbol = selectedPiece.getSymbol();
         int selectedRow = selectedPiece.getRow();

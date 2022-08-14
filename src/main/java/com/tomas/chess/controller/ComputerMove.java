@@ -22,7 +22,7 @@ public class ComputerMove {
         ArrayList<Integer> positions = new ArrayList<>();
         ArrayList<Controller> controllers = new ArrayList<>();
         
-        controller.getAllPositions(positions, board.getSymbolBoard(), true);
+        controller.getAllPositions(positions, board.getSymbolBoard(), true, true);
         if (positions.isEmpty()) {
             System.out.println("Game over");
             moveType = -5;
