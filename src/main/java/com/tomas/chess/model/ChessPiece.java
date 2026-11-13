@@ -1,10 +1,10 @@
 package com.tomas.chess.model;
 
 import javax.swing.*;
+import java.net.URL;
 import java.util.Objects;
 
 public class ChessPiece {
-    public static String sep = System.getProperty("file.separator");
     private final char symbol;
     private final JLabel label;
     private int row;
@@ -15,14 +15,10 @@ public class ChessPiece {
         this.row = row;
         this.col = col;
 
-        String filename;
-        if (symbol > 90) //white piece
-            filename = "w" + symbol + ".png";
-        else
-            filename = "b" + symbol + ".png";
-
-        ImageIcon img = new ImageIcon(Objects.requireNonNull(getClass().getResource(sep + "pieces" + sep + filename)));
-        this.label = new JLabel(img);
+        String filename = (ChessBoard.isWhite(symbol) ? "w" : "b") + symbol + ".png";
+        URL image = Objects.requireNonNull(getClass().getResource("/pieces/" + filename),
+                "Missing piece image " + filename);
+        this.label = new JLabel(new ImageIcon(image));
     }
 
     public JLabel getLabel() {

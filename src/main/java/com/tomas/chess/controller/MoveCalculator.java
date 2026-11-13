@@ -1,5 +1,7 @@
 package com.tomas.chess.controller;
 
+import com.tomas.chess.model.ChessBoard;
+
 import java.util.ArrayList;
 
 class MoveCalculator {
@@ -9,7 +11,9 @@ class MoveCalculator {
     private final ArrayList<Integer> moves;
     private final Validator validator;
     private final boolean getMoves;
-    private int GV;
+    // Sum over this side's legal moves of a weight per moving piece (pawn captures 9 ... queen/king 1),
+    // signed so that it is positive for the computer.
+    private int weightedMobility;
 
     public MoveCalculator(char[][] board, boolean isWhite, boolean maximizingPlayer, ArrayList<Integer> moves, boolean getMoves) {
         this.board = board;        
@@ -17,15 +21,15 @@ class MoveCalculator {
         this.maximizingPlayer = maximizingPlayer;
         this.moves = moves;
         this.validator = new Validator(board, isWhite, maximizingPlayer);
-        GV = 0;
+        weightedMobility = 0;
         this.getMoves = getMoves;
     }
 
-    int getGV() {
-        return GV;
+    int getWeightedMobility() {
+        return weightedMobility;
     }
 
-    private int getCaptureStrength(char piece) {
+    private int mobilityWeight(char piece) {
         if (piece == 'k' || piece == 'K' || piece == 'q' || piece == 'Q')
             return 1;
         else if (piece == 'r' || piece == 'R')
@@ -41,7 +45,7 @@ class MoveCalculator {
     private void testMove(int row1, int col1, int row2, int col2) {
         char temp = board[row2][col2], piece = board[row1][col1];
         board[row2][col2] = piece;
-        board[row1][col1] = 'e';
+        board[row1][col1] = ChessBoard.EMPTY;
         
         if (!validator.isKingInCheck(board)) {
             if (getMoves) {
@@ -51,9 +55,9 @@ class MoveCalculator {
                 moves.add(col2);
             }
             if (maximizingPlayer)
-                GV += getCaptureStrength(piece);
+                weightedMobility += mobilityWeight(piece);
             else
-                GV -= getCaptureStrength(piece);
+                weightedMobility -= mobilityWeight(piece);
         }
         
         board[row1][col1] = piece;
@@ -61,34 +65,24 @@ class MoveCalculator {
     }
     
     
+    private boolean isOpponent(char piece) {
+        return isWhite ? ChessBoard.isBlack(piece) : ChessBoard.isWhite(piece);
+    }
+
+    /** Tries a move to an empty or enemy square. Returns true if a sliding piece is blocked there. */
     private boolean moveHelper(int row1, int col1, int row2, int col2) {
-        if (isWhite) {
-            if (board[row2][col2] == 'e') {
-                testMove(row1, col1, row2, col2);
-                return false;
-            }
-            else if (board[row2][col2] < 97) {
-                testMove(row1, col1, row2, col2);
-                return true;
-            }
-            else
-                return true;
+        char target = board[row2][col2];
+        if (target == ChessBoard.EMPTY) {
+            testMove(row1, col1, row2, col2);
+            return false;
         }
-        else {
-            if (board[row2][col2] == 'e') {
-                testMove(row1, col1, row2, col2);
-                return false;
-            }
-            else if (board[row2][col2] > 90) {
-                testMove(row1, col1, row2, col2);
-                return true;
-            }
-            else
-                return true;
-        }
+        if (isOpponent(target))
+            testMove(row1, col1, row2, col2);
+        return true;
     }
     
     public void pawn(int row, int col, boolean maximizingPlayer) {
+        char original = board[row][col];
         int startRow, opening, move, promotion;
         if (maximizingPlayer) {
             startRow = 1;
@@ -103,63 +97,37 @@ class MoveCalculator {
             promotion = 0;
         }
         
-        if (row == startRow && board[opening][col] == 'e' && board[startRow + move][col] == 'e') {
-            int tmpGv = GV;
+        // pushes don't count towards mobility, only pawn captures do
+        if (row == startRow && board[opening][col] == ChessBoard.EMPTY && board[startRow + move][col] == ChessBoard.EMPTY) {
+            int saved = weightedMobility;
             testMove(row, col, opening, col);
-            GV = tmpGv;
+            weightedMobility = saved;
         }
         
         if (row+move == promotion)
             board[row][col] = isWhite ? 'q' : 'Q';
         
-        if (board[row+move][col] == 'e') {
-            int tmpGv = GV;
+        if (board[row+move][col] == ChessBoard.EMPTY) {
+            int saved = weightedMobility;
             testMove(row, col, row + move, col);
-            GV = tmpGv;
+            weightedMobility = saved;
         }
 
-        if (isWhite) {
-            if (col > 0) {
-                if (board[row + move][col - 1] < 97)
-                    testMove(row, col, row + move, col - 1);
-                if (board[row][col - 1] == 'A') {
-                    board[row][col-1]='e';
-                    testMove(row, col, row + move, col - 1);
-                    board[row][col-1]='A';
-                }
-            }
-            if (col < 7) {
-                if (board[row+move][col+1] < 97)
-                    testMove(row, col, row + move, col + 1);
-                if (board[row][col+1] == 'A') {
-                    board[row][col+1]='e';
-                    testMove(row, col, row + move, col + 1);
-                    board[row][col+1]='A';
-                }
+        char enPassantVictim = isWhite ? 'A' : 'a';
+        for (int side = -1; side <= 1; side += 2) {
+            int target = col + side;
+            if (target < 0 || target > 7)
+                continue;
+            if (isOpponent(board[row + move][target]))
+                testMove(row, col, row + move, target);
+            if (board[row][target] == enPassantVictim) {
+                board[row][target] = ChessBoard.EMPTY;
+                testMove(row, col, row + move, target);
+                board[row][target] = enPassantVictim;
             }
         }
-        else {
-            if (col > 0) {
-                if (board[row + move][col - 1] > 90 && board[row + move][col - 1] != 'e')
-                    testMove(row, col, row + move, col - 1);
-                if (board[row][col - 1] == 'a') {
-                    board[row][col-1]='e';
-                    testMove(row, col, row + move, col - 1);
-                    board[row][col-1]='a';
-                }
-            }
-            if (col < 7) {
-                if(board[row+move][col+1] > 90 && board[row+move][col+1] != 'e')
-                    testMove(row, col, row+move, col+1);
-                if (board[row][col+1] == 'a') {
-                    board[row][col+1]='e';
-                    testMove(row, col, row + move, col + 1);
-                    board[row][col+1]='a';
-                }
-            }
-        }
-        
-        board[row][col] = isWhite ? 'p' : 'P';
+
+        board[row][col] = original;
     }
     
     public void bishop(int row, int col) {
@@ -279,19 +247,19 @@ class MoveCalculator {
         if (maximizingPlayer ^ isWhite) {
             if (row == startRow && col == 4 && !validator.isKingInCheck(board)) {
                 //king side
-                if (kingCastle && board[startRow][7] == rook && board[startRow][5] == 'e' && board[startRow][6] == 'e')
+                if (kingCastle && board[startRow][7] == rook && board[startRow][5] == ChessBoard.EMPTY && board[startRow][6] == ChessBoard.EMPTY)
                     castle(true, false, startRow, king);
                 //queen side
-                if (queenCastle && board[startRow][0] == rook && board[startRow][1] == 'e' && board[startRow][2] == 'e' && board[startRow][3] == 'e')
+                if (queenCastle && board[startRow][0] == rook && board[startRow][1] == ChessBoard.EMPTY && board[startRow][2] == ChessBoard.EMPTY && board[startRow][3] == ChessBoard.EMPTY)
                     castle(false, false, startRow, king);
             }
         }
         else if (row == startRow && col == 3 && !validator.isKingInCheck(board)) {
             //king side
-            if (kingCastle && board[startRow][0] == rook && board[startRow][1] == 'e' && board[startRow][2] == 'e')
+            if (kingCastle && board[startRow][0] == rook && board[startRow][1] == ChessBoard.EMPTY && board[startRow][2] == ChessBoard.EMPTY)
                 castle(true, true, startRow, king);
             //queen side
-            if (queenCastle && board[startRow][7] == rook && board[startRow][6] == 'e' && board[startRow][5] == 'e' && board[startRow][4] == 'e')
+            if (queenCastle && board[startRow][7] == rook && board[startRow][6] == ChessBoard.EMPTY && board[startRow][5] == ChessBoard.EMPTY && board[startRow][4] == ChessBoard.EMPTY)
                 castle(false, true, startRow, king);
         }
     }
@@ -318,14 +286,14 @@ class MoveCalculator {
                 empty2 = 2;
             }
         }
-        board[startRow][kingStart] = 'e';
+        board[startRow][kingStart] = ChessBoard.EMPTY;
         board[startRow][empty1] = king;
         validator.moveKing(0,move);
         if (!validator.isKingInCheck(board)) {
-            board[startRow][empty1] = 'e';
+            board[startRow][empty1] = ChessBoard.EMPTY;
             board[startRow][empty2] = king;
             validator.moveKing(0,move);
-            if (!validator.isKingInCheck(board)) {
+            if (!validator.isKingInCheck(board) && getMoves) {
                 moves.add(startRow); moves.add(kingStart); 
                 if (kingSide) {
                     moves.add(-1); moves.add(-1); //king side castle
@@ -337,8 +305,8 @@ class MoveCalculator {
             validator.moveKing(0,-1*move);
         }
         validator.moveKing(0,-1*move);
-        board[startRow][empty2] = 'e';
-        board[startRow][empty1] = 'e';
+        board[startRow][empty2] = ChessBoard.EMPTY;
+        board[startRow][empty1] = ChessBoard.EMPTY;
         board[startRow][kingStart] = king;
     }
 }

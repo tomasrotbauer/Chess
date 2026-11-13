@@ -1,222 +1,244 @@
 package com.tomas.chess.model;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
+/**
+ * Board state for the game being played.
+ *
+ * Symbols: 'e' = empty, lowercase = white, uppercase = black.
+ * b = bishop, k = king, n = knight, p = pawn, q = queen, r = rook.
+ * 'a'/'A' is a pawn that has just moved two squares (it can be captured en passant).
+ *
+ * The player's pieces always start on rows 6-7 (bottom), the computer's on rows 0-1 (top).
+ * When the player is black the board is rotated, so the kings start on column 3 instead of 4.
+ */
 public class ChessBoard {
-    private static final Map<String, Integer> positionHash = new HashMap<>();
-    private final ChessPiece[][] board;
-    private final char[][] symbolBoard;
-    private boolean playerTurn;
+    public static final char EMPTY = 'e';
+
+    public static final int WHITE_KINGSIDE = 1;
+    public static final int WHITE_QUEENSIDE = 2;
+    public static final int BLACK_KINGSIDE = 4;
+    public static final int BLACK_QUEENSIDE = 8;
+    public static final int ALL_CASTLING = 15;
+
+    private final Map<String, Integer> positionCounts = new HashMap<>();
+    private final ChessPiece[][] board = new ChessPiece[8][8];
+    private final char[][] symbolBoard = new char[8][8];
     private final boolean playerWhite;
-    
+    private volatile boolean playerTurn;
+    private boolean whiteToMove = true;
+    private int castlingRights = ALL_CASTLING;
+    private int halfmoveClock = 0;
+
     public ChessBoard(boolean playerWhite) {
         this.playerWhite = playerWhite;
         this.playerTurn = playerWhite;
-        board = new ChessPiece[8][8];
-        symbolBoard = new char[8][8];
     }
-    
+
+    public static boolean isWhite(char piece) {
+        return piece >= 'a' && piece <= 'z' && piece != EMPTY;
+    }
+
+    public static boolean isBlack(char piece) {
+        return piece >= 'A' && piece <= 'Z';
+    }
+
     public char[][] getSymbolBoard() {
         return symbolBoard;
     }
-    
+
     public ChessPiece getPiece(int row, int col) {
         return board[row][col];
     }
-    
+
     public boolean isComputerTurn() {
         return !playerTurn;
     }
-    
+
     public void setPlayerTurn(boolean playerTurn) {
         this.playerTurn = playerTurn;
     }
-    
+
     public boolean isPlayerWhite() {
         return playerWhite;
     }
-    
-    public void initialize() {
-        /*
-        e = empty
-        lowercase = white colour
-        uppercase = black colour
-        b/B = bishop
-        k/K = king
-        n/N = knight
-        p/P = pawn
-        q/Q = queen
-        r/R = rook
-        */
-        
-        for (int i = 2; i < 6; i++)
-            for (int j = 0; j < 8; j++)
-                board[i][j] = null;
 
-        int row = playerWhite ? 1 : 6;
-        for (int i = 0; i < 8; i++)
-            board[row][i] = new ChessPiece('P',row,i);
-        
-        row = playerWhite ? 0 : 7;
-        board[row][0] = new ChessPiece('R',row,0);
-        board[row][1] = new ChessPiece('N',row,1);
-        board[row][2] = new ChessPiece('B',row,2);
-        board[row][5] = new ChessPiece('B',row,5);
-        board[row][6] = new ChessPiece('N',row,6);
-        board[row][7] = new ChessPiece('R',row,7);
-        
-        row = playerWhite ? 6 : 1;
-        for (int i = 0; i < 8; i++)
-            board[row][i] = new ChessPiece('p',row,i);
-        
-        row = playerWhite ? 7 : 0;
-        board[row][0] = new ChessPiece('r',row,0);
-        board[row][1] = new ChessPiece('n',row,1);
-        board[row][2] = new ChessPiece('b',row,2);
-        board[row][5] = new ChessPiece('b',row,5);
-        board[row][6] = new ChessPiece('n',row,6);
-        board[row][7] = new ChessPiece('r',row,7);
-        
-        if (!playerWhite) {
-            board[0][3] = new ChessPiece('k',0,3);
-            board[0][4] = new ChessPiece('q',0,4);
-            board[7][3] = new ChessPiece('K',7,3);
-            board[7][4] = new ChessPiece('Q',7,4);
-        }
-        else {
-            board[0][3] = new ChessPiece('Q',0,3);
-            board[0][4] = new ChessPiece('K',0,4);
-            board[7][3] = new ChessPiece('q',7,3);
-            board[7][4] = new ChessPiece('k',7,4);
-        }
-
-/*
-        board[4][4] = new ChessPiece('p',4,4);
-        board[1][3] = new ChessPiece('P', 1,3);
-
-
-        board[7][0] = new ChessPiece('r',7,0);
-        board[6][7] = new ChessPiece('R',6,7);
-        board[6][5] = new ChessPiece('P',6,5);
-        board[6][3] = new ChessPiece('Q',6,3);
-        board[6][1] = new ChessPiece('P',6,1);
-        board[6][0] = new ChessPiece('P',6,0);
-        board[5][4] = new ChessPiece('K',5,4);
-        board[4][6] = new ChessPiece('P',4,6);
-        board[4][4] = new ChessPiece('N',4,4);
-        board[4][2] = new ChessPiece('q',4,2);
-        board[3][4] = new ChessPiece('n',3,4);
-        board[1][6] = new ChessPiece('p',1,6);
-        board[1][5] = new ChessPiece('p',1,5);
-        board[1][2] = new ChessPiece('p',1,2);
-        board[1][1] = new ChessPiece('p',1,1);
-        board[1][0] = new ChessPiece('p',1,0);
-        board[0][5] = new ChessPiece('b',0,5);
-        board[0][1] = new ChessPiece('k',0,1);
-*/
-        
-        for (int i = 0; i < 8; i++)
-            for (int j = 0; j < 8; j++) {
-                if (board[i][j] == null)
-                    symbolBoard[i][j] = 'e';
-                else
-                    symbolBoard[i][j] = board[i][j].getSymbol();
-            }
-
-        positionHash.put(hash(symbolBoard), 1);
+    public boolean isWhiteToMove() {
+        return whiteToMove;
     }
-    
-    public ChessPiece movePiece(int startRow, int startCol, int endRow, int endCol) {
-        ChessPiece enPassant = null;
-        if (startRow == endRow && startCol == endCol)
-            return null;
-        
+
+    public int getCastlingRights() {
+        return castlingRights;
+    }
+
+    public void initialize() {
+        for (int i = 0; i < 8; i++)
+            for (int j = 0; j < 8; j++)
+                place(null, i, j);
+
+        char[] back = playerWhite
+                ? new char[]{'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'}
+                : new char[]{'r', 'n', 'b', 'k', 'q', 'b', 'n', 'r'};
+        for (int col = 0; col < 8; col++) {
+            char white = back[col];
+            char black = Character.toUpperCase(white);
+            int whiteBack = playerWhite ? 7 : 0, whitePawns = playerWhite ? 6 : 1;
+            int blackBack = playerWhite ? 0 : 7, blackPawns = playerWhite ? 1 : 6;
+            place(new ChessPiece(white, whiteBack, col), whiteBack, col);
+            place(new ChessPiece('p', whitePawns, col), whitePawns, col);
+            place(new ChessPiece(black, blackBack, col), blackBack, col);
+            place(new ChessPiece('P', blackPawns, col), blackPawns, col);
+        }
+
+        whiteToMove = true;
+        castlingRights = ALL_CASTLING;
+        halfmoveClock = 0;
+        positionCounts.clear();
+        recordPosition();
+    }
+
+    /**
+     * Plays a move that has already been validated. Handles castling (a king moving two
+     * squares), en passant and promotion. {@code promotion} is the piece letter to promote
+     * to (any case); it is ignored for moves that are not promotions.
+     *
+     * @return the pawn captured en passant, or null
+     */
+    public ChessPiece movePiece(int startRow, int startCol, int endRow, int endCol, char promotion) {
         ChessPiece piece = board[startRow][startCol];
-        
-        if (piece.getSymbol() == 'p' && (endRow == 7 || endRow == 0))
-            piece = new ChessPiece('q', endRow, endCol);
-        else if (piece.getSymbol() == 'P' && (endRow == 7 || endRow == 0))
-            piece = new ChessPiece('Q', endRow, endCol);
-        
-        piece.setRow(endRow);
-        piece.setCol(endCol);
-        
-        if ((piece.getSymbol() == 'k' || piece.getSymbol() == 'K') && startCol == 4) {
-            if (endCol == 6)
-                movePiece(startRow, 7, endRow, 5);
-            else if (endCol == 2)
-                movePiece(startRow, 0, endRow, 3);
-        }
-        else if ((piece.getSymbol() == 'k' || piece.getSymbol() == 'K') && startCol == 3) {
-            if (endCol == 1)
-                movePiece(startRow, 0, endRow, 2);
-            else if (endCol == 5)
-                movePiece(startRow, 7, endRow, 4);
-        }
-        
-        board[endRow][endCol] = piece;
-        board[startRow][startCol] = null;
+        char symbol = piece.getSymbol();
+        boolean white = isWhite(symbol);
+        boolean pawn = symbol == 'p' || symbol == 'P';
+        boolean capture = board[endRow][endCol] != null;
+        ChessPiece enPassant = null;
 
-        if (piece.getSymbol() == 'p' && Math.abs(endRow - startRow) == 2)
-            symbolBoard[endRow][endCol] = 'a';
-        else if (piece.getSymbol() == 'P' && Math.abs(endRow - startRow) == 2)
-            symbolBoard[endRow][endCol] = 'A';
-        else
-            symbolBoard[endRow][endCol] = piece.getSymbol();
-        symbolBoard[startRow][startCol] = 'e';
+        castlingRights = updateCastlingRights(castlingRights, playerWhite, symbol,
+                startRow, startCol, endRow, endCol);
 
-        if (piece.getSymbol() == 'p' && Math.abs(endCol-startCol) == 1 && symbolBoard[startRow][endCol] == 'A') {
-            symbolBoard[startRow][endCol] = 'e';
+        if (pawn && startCol != endCol && board[endRow][endCol] == null) {
             enPassant = board[startRow][endCol];
-            board[startRow][endCol] = null;
-        }
-        if (piece.getSymbol() == 'P' && Math.abs(endCol-startCol) == 1 && symbolBoard[startRow][endCol] == 'a') {
-            symbolBoard[startRow][endCol] = 'e';
-            enPassant = board[startRow][endCol];
-            board[startRow][endCol] = null;
+            place(null, startRow, endCol);
+            capture = true;
         }
 
-        for (int j = 0; j < 7; j++) {
-            if (!(endRow == 3 && endCol == j)) {
-                if (symbolBoard[3][j] == 'a')
-                    symbolBoard[3][j] = 'p';
-                else if (symbolBoard[3][j] == 'A')
-                    symbolBoard[3][j] = 'P';
-            }
-            if (!(endRow == 4 && endCol == j)) {
-                if (symbolBoard[4][j] == 'a')
-                    symbolBoard[4][j] = 'p';
-                else if (symbolBoard[4][j] == 'A')
-                    symbolBoard[4][j] = 'P';
-            }
+        if ((symbol == 'k' || symbol == 'K') && Math.abs(endCol - startCol) == 2) {
+            boolean towardsHigherCol = endCol > startCol;
+            int rookFrom = towardsHigherCol ? 7 : 0;
+            int rookTo = towardsHigherCol ? endCol - 1 : endCol + 1;
+            ChessPiece rook = board[startRow][rookFrom];
+            place(null, startRow, rookFrom);
+            place(rook, startRow, rookTo);
         }
 
-        String hash = hash(symbolBoard);
-        if (positionHash.containsKey(hash)) {
-            if (positionHash.get(hash) == 2) {
-                System.out.println("Draw by repetition.");
-            }
-            else
-                positionHash.put(hash, positionHash.get(hash) + 1);
+        if (pawn && (endRow == 0 || endRow == 7)) {
+            char promoted = white ? Character.toLowerCase(promotion) : Character.toUpperCase(promotion);
+            piece = new ChessPiece(promoted, endRow, endCol);
         }
-        else
-            positionHash.put(hash, 1);
+
+        place(null, startRow, startCol);
+        place(piece, endRow, endCol);
+
+        clearEnPassantMarks(symbolBoard);
+        if (pawn && Math.abs(endRow - startRow) == 2)
+            symbolBoard[endRow][endCol] = white ? 'a' : 'A';
+
+        halfmoveClock = (pawn || capture) ? 0 : halfmoveClock + 1;
+        whiteToMove = !white;
+        recordPosition();
         return enPassant;
     }
 
-    public static int positionOccurrences(char[][] position) {
-        String hash = hash(position);
-        if (positionHash.containsKey(hash))
-            return positionHash.get(hash);
+    private void place(ChessPiece piece, int row, int col) {
+        board[row][col] = piece;
+        symbolBoard[row][col] = piece == null ? EMPTY : piece.getSymbol();
+        if (piece != null) {
+            piece.setRow(row);
+            piece.setCol(col);
+        }
+    }
 
+    /** Turns every 'a'/'A' (just moved two squares) back into an ordinary pawn. */
+    public static void clearEnPassantMarks(char[][] position) {
+        for (int i = 0; i < 8; i++)
+            for (int j = 0; j < 8; j++) {
+                if (position[i][j] == 'a')
+                    position[i][j] = 'p';
+                else if (position[i][j] == 'A')
+                    position[i][j] = 'P';
+            }
+    }
+
+    /**
+     * Returns the castling rights left after a move. Moving the king removes both of its
+     * rights; anything moving from or to a corner square removes the right for that rook
+     * (it either moved or was captured). {@code endRow} may be negative for an encoded
+     * castling move; the king rule covers that case.
+     */
+    public static int updateCastlingRights(int rights, boolean playerWhite, char piece,
+                                           int startRow, int startCol, int endRow, int endCol) {
+        if (piece == 'k')
+            rights &= ~(WHITE_KINGSIDE | WHITE_QUEENSIDE);
+        else if (piece == 'K')
+            rights &= ~(BLACK_KINGSIDE | BLACK_QUEENSIDE);
+        rights &= ~cornerRight(playerWhite, startRow, startCol);
+        if (endRow >= 0)
+            rights &= ~cornerRight(playerWhite, endRow, endCol);
+        return rights;
+    }
+
+    private static int cornerRight(boolean playerWhite, int row, int col) {
+        if (row != 0 && row != 7)
+            return 0;
+        boolean whiteHome = row == (playerWhite ? 7 : 0);
+        int kingsideCol = playerWhite ? 7 : 0;
+        if (col == kingsideCol)
+            return whiteHome ? WHITE_KINGSIDE : BLACK_KINGSIDE;
+        if (col == 7 - kingsideCol)
+            return whiteHome ? WHITE_QUEENSIDE : BLACK_QUEENSIDE;
         return 0;
     }
 
-    private static String hash(char[][] position) {
-        StringBuilder sb = new StringBuilder();
+    private void recordPosition() {
+        String key = positionKey(symbolBoard, whiteToMove, castlingRights);
+        Integer count = positionCounts.get(key);
+        positionCounts.put(key, count == null ? 1 : count + 1);
+    }
+
+    /** How many times this position (with this side to move and these castling rights) has occurred. */
+    public int getPositionCount(char[][] position, boolean whiteToMove, int castling) {
+        Integer count = positionCounts.get(positionKey(position, whiteToMove, castling));
+        return count == null ? 0 : count;
+    }
+
+    private static String positionKey(char[][] position, boolean whiteToMove, int castling) {
+        StringBuilder sb = new StringBuilder(67);
         for (int i = 0; i < 8; i++)
-            for (int j = 0; j < 8; j++)
-                sb.append(position[i][j]);
-        return sb.toString();
+            sb.append(position[i]);
+        return sb.append(whiteToMove ? 'w' : 'b').append(castling).toString();
+    }
+
+    public boolean isThreefoldRepetition() {
+        return getPositionCount(symbolBoard, whiteToMove, castlingRights) >= 3;
+    }
+
+    public boolean isFiftyMoveRule() {
+        return halfmoveClock >= 100;
+    }
+
+    /** King against king, or king and one bishop or knight against a lone king. */
+    public boolean isInsufficientMaterial() {
+        int others = 0;
+        boolean minorOnly = true;
+        for (int i = 0; i < 8; i++)
+            for (int j = 0; j < 8; j++) {
+                char p = Character.toLowerCase(symbolBoard[i][j]);
+                if (p == EMPTY || p == 'k')
+                    continue;
+                others++;
+                if (p != 'b' && p != 'n')
+                    minorOnly = false;
+            }
+        return others == 0 || (others == 1 && minorOnly);
     }
 }

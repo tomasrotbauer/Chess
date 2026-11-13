@@ -10,6 +10,7 @@ public class Chess extends JFrame {
     public Chess(boolean isPlayerWhite) {
         super("Rotbitch Chess");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setResizable(false);
 
         ChessBoard board = new ChessBoard(isPlayerWhite);
         board.initialize();
@@ -20,13 +21,8 @@ public class Chess extends JFrame {
         pack();
         setVisible(true);
 
-        if (!isPlayerWhite) {
-            try {
-                window.computerMove();
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        }
+        if (!isPlayerWhite)
+            window.computerMove();
     }
    
     public static void main(String[] args) {

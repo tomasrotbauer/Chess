@@ -1,92 +1,120 @@
 package com.tomas.chess.controller;
 
+import com.tomas.chess.model.ChessBoard;
+import com.tomas.chess.model.ChessPiece;
+
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import com.tomas.chess.model.*;
-
+/**
+ * Move generation and search. The computer is the "maximizing" side and always plays from
+ * the top of the board (rows 0-1).
+ *
+ * Moves are stored four ints at a time in an ArrayList: row1, col1, row2, col2. A castling
+ * move has row2 == col2 == CASTLE_KINGSIDE or CASTLE_QUEENSIDE.
+ */
 public class Controller implements Runnable {
-    
+    public static final int ILLEGAL = 0;
+    public static final int NORMAL = 1;
+    public static final int PROMOTION = 2;
+    public static final int CASTLE_KINGSIDE = -1;
+    public static final int CASTLE_QUEENSIDE = -2;
+
+    static final int INFINITY = 1000000;
+    static final int MATE = 100000;
+
     private final boolean isComputerWhite;
-    private static final int DEPTH = 4;
-    public int row1, col1, row2, col2;
+
+    // Only used when this Controller is a search task for one root move.
     private final char[][] root;
+    private final int[] rootMove;
+    private final int rootCastling;
+    private final int depth;
+    private final long deadline;
+    private final AtomicInteger bestRootScore;
+    private volatile boolean aborted;
     private int score;
-    private boolean blackKingCastle, blackQueenCastle, whiteKingCastle, whiteQueenCastle;
-    
-    
-    public void run() {
-        score = -negamax(root, DEPTH, -1000000, 1000000, -1);
-        System.out.println("DONE");
+
+    /** A controller for move generation and validation only. */
+    public Controller(boolean isComputerWhite) {
+        this(null, null, isComputerWhite, 0, 0, Long.MAX_VALUE, null);
     }
-    
-    public Controller(char[][] root, int[] move, boolean isComputerWhite, boolean[] castle) {
+
+    /**
+     * A search task: scores the position {@code root} reached by the computer playing
+     * {@code move}, searching {@code depth} more plies after it. {@code bestRootScore} holds the
+     * best score found so far among the sibling root moves and is used as alpha.
+     */
+    Controller(char[][] root, int[] move, boolean isComputerWhite, int castling, int depth,
+               long deadline, AtomicInteger bestRootScore) {
         this.isComputerWhite = isComputerWhite;
         this.root = root;
-        row1 = move[0];
-        col1 = move[1];
-        row2 = move[2];
-        col2 = move[3];
-        this.blackKingCastle = castle[0];
-        this.blackQueenCastle = castle[1];
-        this.whiteKingCastle = castle[2];
-        this.whiteQueenCastle = castle[3];
+        this.rootMove = move;
+        this.rootCastling = castling;
+        this.depth = depth;
+        this.deadline = deadline;
+        this.bestRootScore = bestRootScore;
     }
-    
-    public int getScore() {
+
+    @Override
+    public void run() {
+        // Alpha one below the best so far: moves equal to the best still get an exact score,
+        // so ties can be broken randomly.
+        int alpha = bestRootScore.get() - 1;
+        score = -negamax(root, depth, 1, -INFINITY, -alpha, -1, rootCastling);
+        if (!aborted)
+            bestRootScore.accumulateAndGet(score, Math::max);
+    }
+
+    int[] getRootMove() {
+        return rootMove;
+    }
+
+    int getScore() {
         return score;
     }
 
-    public void drawByRepetition() {
-        score = 0;
+    void setScore(int score) {
+        this.score = score;
     }
-    
-    public void blackCannotCastle(int moveType) {
-        if (moveType == -1)
-            blackKingCastle = false;
-        else if (moveType == -2)
-            blackQueenCastle = false;
+
+    boolean wasAborted() {
+        return aborted;
     }
-    
-    public boolean canBlackCastle(int moveType) {
-        boolean retVal = false;
-        if (moveType == -1)
-            retVal = blackKingCastle;
-        else if (moveType == -2)
-            retVal = blackQueenCastle;
-        return retVal;
-    }
-    
-    public void whiteCannotCastle(int moveType) {
-        if (moveType == -1)
-            whiteKingCastle = false;
-        else if (moveType == -2)
-            whiteQueenCastle = false;
-    }
-    
-    public boolean canWhiteCastle(int moveType) {
-        boolean retVal = false;
-        if (moveType == -1)
-            retVal = whiteKingCastle;
-        else if (moveType == -2)
-            retVal = whiteQueenCastle;
-        return retVal;
-    }
-    
-    public int negamax(char[][] position, int depth, int alpha, int beta, int colour) {
-        ArrayList<Integer> positions = new ArrayList<>();
-        int GV = getAllPositions(positions, position, colour == 1, true);
-        
-        if (depth == 0 || positions.isEmpty())
-            return colour * staticEvaluation(position, positions.size(), GV, colour == 1, DEPTH - depth);
-        
-        orderMoves(position, positions);
-        int value = -1000000, eval;
+
+    /**
+     * Score of {@code position} from the side to move's point of view
+     * ({@code colour} 1 = computer, -1 = player).
+     */
+    private int negamax(char[][] position, int depth, int ply, int alpha, int beta, int colour, int castling) {
+        if (System.nanoTime() > deadline) {
+            aborted = true;
+            return 0;
+        }
+
+        boolean computerToMove = colour == 1;
+        ArrayList<Integer> moves = new ArrayList<>();
+        int mobility = getAllPositions(moves, position, computerToMove, true, castling);
+
+        if (moves.isEmpty()) {
+            if (!isInCheck(position, computerToMove))
+                return 0; // stalemate
+            // Prefer the fastest mate, and the slowest when being mated.
+            return -(MATE - ply);
+        }
+        if (depth == 0)
+            return colour * evaluate(position, mobility, computerToMove, castling);
+
+        orderMoves(position, moves);
+        int value = -INFINITY;
         char[][] child = new char[8][8];
-        
-        int max = positions.size();// > 24 ? 24 : positions.size();
-        for (int i = 0; i < max; i+=4) {
-            makeMove(position, child, positions, i);
-            eval = -negamax(child, depth-1, -beta, -alpha, -colour);
+
+        for (int i = 0; i < moves.size(); i += 4) {
+            makeMove(position, child, moves, i);
+            int eval = -negamax(child, depth - 1, ply + 1, -beta, -alpha, -colour,
+                    updateCastling(castling, position, moves, i));
+            if (aborted)
+                return 0;
             value = Math.max(eval, value);
             alpha = Math.max(value, alpha);
             if (alpha >= beta)
@@ -94,343 +122,152 @@ public class Controller implements Runnable {
         }
         return value;
     }
-    
-    private void orderMoves(char[][] position, ArrayList<Integer> positions) {
+
+    /** Captures first, so alpha-beta cuts off sooner. */
+    private void orderMoves(char[][] position, ArrayList<Integer> moves) {
         int switchWith = 0;
-        int temp;
-        for (int i = 0; i < positions.size(); i+=4) {
-            if (positions.get(i+2) >= 0 && position[positions.get(i+2)][positions.get(i+3)] != 'e') {
-                if (switchWith == i)
-                    switchWith += 4;
-                else
-                    for (int j = i; j < i+4; j++) {
-                        temp = positions.get(switchWith);
-                        positions.set(switchWith, positions.get(j));
-                        positions.set(j, temp);
-                        switchWith++;
+        for (int i = 0; i < moves.size(); i += 4) {
+            if (moves.get(i + 2) >= 0 && position[moves.get(i + 2)][moves.get(i + 3)] != ChessBoard.EMPTY) {
+                if (switchWith != i)
+                    for (int j = i; j < i + 4; j++) {
+                        int temp = moves.get(switchWith + j - i);
+                        moves.set(switchWith + j - i, moves.get(j));
+                        moves.set(j, temp);
                     }
+                switchWith += 4;
             }
         }
     }
-    
-    public int minimax(char[][] position, int depth, int alpha, int beta, boolean maximizingPlayer) {
-        ArrayList<Integer> positions = new ArrayList<>();
-        int GV = getAllPositions(positions, position, maximizingPlayer, true);
-        orderMoves(position, positions);
-        
-        if (depth == 0 || positions.isEmpty())
-            return staticEvaluation(position, positions.size(), GV, maximizingPlayer, DEPTH-depth);
-        
-        char[][] child = new char[8][8];
-        
-        if (maximizingPlayer) {
-            int maxEval = -1000000;
-            int eval;
-            for (int i = 0; i < positions.size(); i+=4) {
-                makeMove(position, child, positions, i);
-                eval = minimax(child, depth - 1, alpha, beta, false);
-                maxEval = Math.max(eval, maxEval);
-                alpha = Math.max(alpha, maxEval);
-                if (maxEval >= beta)
-                    break;
-            }
-            return maxEval;
-        }
-        
-        else {
-            int minEval = 1000000;
-            int eval;
-            for (int i = 0; i < positions.size(); i+=4) {
-                makeMove(position, child, positions, i);
-                eval = minimax(child, depth - 1, alpha, beta, true);
-                minEval = Math.min(minEval, eval);
-                beta = Math.min(beta, minEval);
-                if (minEval <= alpha)
-                    break;
-            }
-            return minEval;
-        }
-    }
-    
-    private void printFuncCallInfo(int depth, boolean maximizingPlayer, int num) {
-        System.out.println("DEPTH = " + depth);
-        System.out.println(maximizingPlayer ? "COMPUTER" : "PLAYER");
-        System.out.println("NUMBER OF POSITIONS = " + num);
-    }
-    
-    private void printChild(char[][] child) {
-        for (int i = 0; i < 8; i++) {
-            System.out.println();
-            for (int j = 0; j < 8; j++)
-                System.out.print(child[i][j]);
-        }
-        System.out.println();
-    }
-    
-    private int staticEvaluation(char[][] position, int options, int GV, boolean maximizingPlayer, int depth) {
-        if (options == 0) {
-            Validator validator = new Validator(position, maximizingPlayer == isComputerWhite, maximizingPlayer);
-            if (validator.isKingInCheck(position))
-                return maximizingPlayer ? -100000 : (100000-depth);
-            else
-                return 0;
-        }
 
-        GV += getAllPositions(new ArrayList<Integer>(), position, !maximizingPlayer, false);
+    /** Static evaluation from the computer's point of view: material plus weighted mobility of both sides. */
+    private int evaluate(char[][] position, int sideMobility, boolean computerToMove, int castling) {
+        int opponentMobility = getAllPositions(new ArrayList<Integer>(), position, !computerToMove, false, castling);
 
-        char piece;
-        int score = 0, rowScore = 0;
-        //First, assume computer is black
+        int material = 0; // positive = good for black
         for (int row = 0; row < 8; row++)
             for (int col = 0; col < 8; col++) {
-                piece = position[row][col];
-                if (piece != 'e') {
-                    if (piece < 97)
-                        rowScore += row;
-                    if (piece == 'P' || piece == 'A')
-                        score += 100;
-                    else if (piece == 'p' || piece == 'a')
-                        score -= 100;
-                    else if (piece == 'B')
-                        score += 300;
-                    else if (piece == 'b')
-                        score -= 300;
-                    else if (piece == 'N')
-                        score += 300;
-                    else if (piece == 'n')
-                        score -= 300;
-                    else if (piece == 'R')
-                        score += 500;
-                    else if (piece == 'r')
-                        score -= 500;
-                    else if (piece == 'Q')
-                        score += 900;
-                    else if (piece == 'q')
-                        score -= 900;
+                char piece = position[row][col];
+                int value;
+                switch (Character.toLowerCase(piece)) {
+                    case 'p': case 'a': value = 100; break;
+                    case 'b': case 'n': value = 300; break;
+                    case 'r': value = 500; break;
+                    case 'q': value = 900; break;
+                    default: value = 0;
+                }
+                material += ChessBoard.isBlack(piece) ? value : -value;
+            }
+        if (isComputerWhite)
+            material = -material;
+
+        // both mobility terms are already signed from the computer's point of view
+        return material + sideMobility + opponentMobility;
+    }
+
+    public boolean isInCheck(char[][] position, boolean computer) {
+        return new Validator(position, computer == isComputerWhite, computer).isKingInCheck(position);
+    }
+
+    /**
+     * Appends every legal move for one side to {@code moves} (if {@code getMoves}) and returns
+     * that side's weighted mobility. {@code position} is modified temporarily and restored.
+     */
+    public int getAllPositions(ArrayList<Integer> moves, char[][] position, boolean computer,
+                               boolean getMoves, int castling) {
+        boolean white = computer == isComputerWhite;
+        MoveCalculator calc = new MoveCalculator(position, white, computer, moves, getMoves);
+        boolean kingside = (castling & (white ? ChessBoard.WHITE_KINGSIDE : ChessBoard.BLACK_KINGSIDE)) != 0;
+        boolean queenside = (castling & (white ? ChessBoard.WHITE_QUEENSIDE : ChessBoard.BLACK_QUEENSIDE)) != 0;
+
+        for (int row = 0; row < 8; row++)
+            for (int col = 0; col < 8; col++) {
+                char piece = position[row][col];
+                if (white ? !ChessBoard.isWhite(piece) : !ChessBoard.isBlack(piece))
+                    continue;
+                switch (Character.toLowerCase(piece)) {
+                    case 'p': case 'a': calc.pawn(row, col, computer); break;
+                    case 'b': calc.bishop(row, col); break;
+                    case 'n': calc.knight(row, col); break;
+                    case 'r': calc.rook(row, col); break;
+                    case 'q': calc.queen(row, col); break;
+                    case 'k': calc.king(row, col, computer, kingside, queenside); break;
                 }
             }
-        score = isComputerWhite ? -score : score;
-        //score += maximizingPlayer ? options : -options;
-        //score += rowScore;
+        return calc.getWeightedMobility();
+    }
 
-        return score + GV;
+    /** Castling rights after playing move {@code i} of {@code moves} in {@code position}. */
+    int updateCastling(int castling, char[][] position, ArrayList<Integer> moves, int i) {
+        int row1 = moves.get(i), col1 = moves.get(i + 1);
+        return ChessBoard.updateCastlingRights(castling, !isComputerWhite, position[row1][col1],
+                row1, col1, moves.get(i + 2), moves.get(i + 3));
     }
-    
-    public int getAllPositions(ArrayList<Integer> positions, char[][] position, boolean maximizingPlayer, boolean getMoves) {
-        MoveCalculator calc = new MoveCalculator(position, maximizingPlayer == isComputerWhite, maximizingPlayer, positions, getMoves);
-        char piece;
-        //Computer black
-        if (maximizingPlayer ^ isComputerWhite) {
-            for (int row = 0; row < 8; row++)
-                for (int col = 0; col < 8; col++) {
-                    piece = position[row][col];
-                    if (piece <= 90) {
-                        if (piece == 'P' || piece == 'A')
-                            calc.pawn(row, col, maximizingPlayer);
-                        else if (piece == 'B')
-                            calc.bishop(row, col);
-                        else if (piece == 'N')
-                            calc.knight(row, col);
-                        else if (piece == 'R')
-                            calc.rook(row, col);
-                        else if (piece == 'Q')
-                            calc.queen(row, col);
-                        else
-                            calc.king(row, col, maximizingPlayer, blackKingCastle, blackQueenCastle);
-                    }
-                }
-        }
-        //Computer white
-        else {
-            for (int row = 0; row < 8; row++)
-                for (int col = 0; col < 8; col++) {
-                    piece = position[row][col];
-                    if (piece != 'e' && piece >= 97) {
-                        if (piece == 'p' || piece == 'a')
-                            calc.pawn(row, col, maximizingPlayer);
-                        else if (piece == 'b')
-                            calc.bishop(row, col);
-                        else if (piece == 'n')
-                            calc.knight(row, col);
-                        else if (piece == 'r')
-                            calc.rook(row, col);
-                        else if (piece == 'q')
-                            calc.queen(row, col);
-                        else
-                            calc.king(row, col, maximizingPlayer, whiteKingCastle, whiteQueenCastle);
-                    }
-                }
-        }
-        return calc.getGV();
-    }
-    
-    public void makeMove(char[][] position, char[][] child, ArrayList<Integer> positions, int i) {
+
+    /** Copies {@code position} into {@code child} and plays move {@code i} of {@code moves} on it. Promotes to a queen. */
+    public void makeMove(char[][] position, char[][] child, ArrayList<Integer> moves, int i) {
         for (int j = 0; j < 8; j++)
-            for (int k = 0; k < 8; k++)
-                child[j][k] = position[j][k];
+            System.arraycopy(position[j], 0, child[j], 0, 8);
+        ChessBoard.clearEnPassantMarks(child);
 
-        int row1, col1, row2, col2;
-        row1 = positions.get(i);
-        col1 = positions.get(i+1);
-        row2 = positions.get(i+2);
-        col2 = positions.get(i+3);
-        
-        child[row1][col1] = 'e';
-
+        int row1 = moves.get(i), col1 = moves.get(i + 1);
+        int row2 = moves.get(i + 2), col2 = moves.get(i + 3);
         char piece = position[row1][col1];
-        
-        // king side castle
-        if (row2 == -1) {
-            if (isComputerWhite) {
-                child[row1][0] = 'e';
-                child[row1][1] = piece;
-                child[row1][2] = position[row1][0];
-            }
-            else {
-            child[row1][7] = 'e';
-            child[row1][6] = piece;
-            child[row1][5] = position[row1][7];
-            }
-        }
-        //queen side castle
-        else if (row2 == -2) {
-            if (isComputerWhite) {
-                child[row1][7] = 'e';
-                child[row1][5] = piece;
-                child[row1][4] = position[row1][7];
-            }
-            else {
-                child[row1][0] = 'e';
-                child[row1][2] = piece;
-                child[row1][3] = position[row1][0];
-            }
-        }
-        //promotion
-        else if (piece == 'p' && (row2 == 0 || row2 == 7))
-            child[row2][col2] = 'q';
-        else if (piece == 'P' && (row2 == 0 || row2 == 7))
-            child[row2][col2] = 'Q';
-        else if (piece == 'p' && Math.abs(row1-row2) == 2)
-            child[row2][col2] = 'a';
-        else if (piece == 'P' && Math.abs(row1-row2) == 2)
-            child[row2][col2] = 'A';
-        else if (piece == 'p' && Math.abs(col1-col2) == 1 && position[row1][col2] == 'A') {
-            child[row1][col2] = 'e';
-            child[row2][col2] = piece;
-            return;
-        }
-        else if (piece == 'P' && Math.abs(col1-col2) == 1 && position[row1][col2] == 'a') {
-            child[row1][col2] = 'e';
-            child[row2][col2] = piece;
-            return;
-        }
-        else
-            child[row2][col2] = position[row1][col1];
+        child[row1][col1] = ChessBoard.EMPTY;
 
-        for (int j = 0; j < 7; j++) {
-            if (!(row2 == 3 && col2 == j)) {
-                if (child[3][j] == 'a')
-                    child[3][j] = 'p';
-                else if (child[3][j] == 'A')
-                    child[3][j] = 'P';
-            }
-            if (!(row2 == 4 && col2 == j)) {
-                if (child[4][j] == 'a')
-                    child[4][j] = 'p';
-                else if (child[4][j] == 'A')
-                    child[4][j] = 'P';
-            }
+        if (row2 == CASTLE_KINGSIDE || row2 == CASTLE_QUEENSIDE) {
+            // Kings start on column 3 when the computer is white (rotated board), else column 4.
+            boolean towardsLowerCol = (row2 == CASTLE_KINGSIDE) == isComputerWhite;
+            int rookCol = towardsLowerCol ? 0 : 7;
+            int kingCol = towardsLowerCol ? col1 - 2 : col1 + 2;
+            int newRookCol = towardsLowerCol ? kingCol + 1 : kingCol - 1;
+            child[row1][rookCol] = ChessBoard.EMPTY;
+            child[row1][newRookCol] = position[row1][rookCol];
+            child[row1][kingCol] = piece;
+            return;
         }
-    }
-    
-    public int validatePlayerMove(ChessBoard board, ChessPiece selectedPiece, int row, int col) {
-        //validate
-        ArrayList<Integer> legalMoves = new ArrayList<>();
-        MoveCalculator calc = new MoveCalculator(board.getSymbolBoard(), 
-                                board.isPlayerWhite(),
-                                false, legalMoves, true);
-        
-        char symbol = selectedPiece.getSymbol();
-        int selectedRow = selectedPiece.getRow();
-        int selectedCol = selectedPiece.getCol();
-        int castling = 0;
-        
-        if (symbol == 'p' || symbol == 'P')
-            calc.pawn(selectedRow, selectedCol, false);
-        else if (symbol == 'b' || symbol == 'B')
-            calc.bishop(selectedRow, selectedCol);
-        else if (symbol == 'n' || symbol == 'N')
-            calc.knight(selectedRow, selectedCol);
-        else if (symbol == 'r' || symbol == 'R')
-            calc.rook(selectedRow, selectedCol);
-        else if (symbol == 'q' || symbol == 'Q')
-            calc.queen(selectedRow, selectedCol);
-        else {
-            if (selectedRow == row){
-                if ((selectedCol == 3 && col == 1) || (selectedCol == 4 && col == 6))
-                    castling = -1;
-                else if ((selectedCol == 3 && col == 5) || (selectedCol == 4 && col == 2))
-                    castling = -2;
-            }
-            if (board.isPlayerWhite())
-                calc.king(selectedRow, selectedCol, false, whiteKingCastle, whiteQueenCastle);
+
+        boolean white = ChessBoard.isWhite(piece);
+        boolean pawn = Character.toLowerCase(piece) == 'p' || Character.toLowerCase(piece) == 'a';
+        if (pawn) {
+            if (col1 != col2 && position[row2][col2] == ChessBoard.EMPTY)
+                child[row1][col2] = ChessBoard.EMPTY; // en passant
+            if (row2 == 0 || row2 == 7)
+                piece = white ? 'q' : 'Q';
+            else if (Math.abs(row1 - row2) == 2)
+                piece = white ? 'a' : 'A';
             else
-                calc.king(selectedRow, selectedCol, false, blackKingCastle, blackQueenCastle);
+                piece = white ? 'p' : 'P';
         }
-        
-        int valid = 0;
-        for (int i = 2; i < legalMoves.size(); i+=4) {
-            if (legalMoves.get(i) == row && legalMoves.get(i+1) == col) {
-                valid = 1;
-                break;
-            }
-            else if (castling < 0 && castling == legalMoves.get(i)) {
-                valid = castling;
-                break;
-            }
-        }
-        if (valid == 1 && (symbol == 'p' || symbol == 'P') && row == 0)
-            valid = 2;
-        
-        if (valid == 0) {
-            System.out.print(selectedRow);
-            System.out.print(selectedCol);
-            System.out.print(row);
-            System.out.println(col);
-            
-            for (int i = 0; i < legalMoves.size(); i+=4) {
-                System.out.print(legalMoves.get(i));
-                System.out.print(legalMoves.get(i+1));
-                System.out.print(legalMoves.get(i+2));
-                System.out.println(legalMoves.get(i+3));
-            }
-        }
-        
-        if (valid != 0) {
-            if (board.isPlayerWhite()) {
-                if (symbol == 'k') {
-                    whiteCannotCastle(-1);
-                    whiteCannotCastle(-2);
-                }
-                else if (symbol == 'r') {
-                    if (col1 == 0)
-                        whiteCannotCastle(-2);
-                    else if (col1 == 7)
-                        whiteCannotCastle(-1);
-                }
-            }
-            else if (symbol == 'K') {
-                blackCannotCastle(-1);
-                blackCannotCastle(-2);
-            }
-            else if (symbol == 'r') {
-                if (col1 == 0)
-                    blackCannotCastle(-1);
-                else if (col1 == 7)
-                    blackCannotCastle(-2);
+        child[row2][col2] = piece;
+    }
+
+    /**
+     * Checks a move by the player.
+     *
+     * @return ILLEGAL, NORMAL, PROMOTION, CASTLE_KINGSIDE or CASTLE_QUEENSIDE
+     */
+    public int validatePlayerMove(ChessBoard board, ChessPiece selectedPiece, int row, int col) {
+        ArrayList<Integer> legalMoves = new ArrayList<>();
+        getAllPositions(legalMoves, board.getSymbolBoard(), false, true, board.getCastlingRights());
+
+        char symbol = selectedPiece.getSymbol();
+        int fromRow = selectedPiece.getRow(), fromCol = selectedPiece.getCol();
+        boolean king = symbol == 'k' || symbol == 'K';
+        int castling = 0;
+        if (king && row == fromRow && Math.abs(col - fromCol) == 2)
+            castling = col == (board.isPlayerWhite() ? 6 : 1) ? CASTLE_KINGSIDE : CASTLE_QUEENSIDE;
+
+        for (int i = 0; i < legalMoves.size(); i += 4) {
+            if (legalMoves.get(i) != fromRow || legalMoves.get(i + 1) != fromCol)
+                continue;
+            int toRow = legalMoves.get(i + 2), toCol = legalMoves.get(i + 3);
+            if (castling != 0 && toRow == castling)
+                return castling;
+            if (castling == 0 && toRow == row && toCol == col) {
+                boolean pawn = symbol == 'p' || symbol == 'P';
+                return pawn && row == 0 ? PROMOTION : NORMAL;
             }
         }
-        
-        return valid;
+        return ILLEGAL;
     }
 }

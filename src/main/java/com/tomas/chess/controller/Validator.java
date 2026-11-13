@@ -7,23 +7,25 @@ class Validator {
     private final boolean maximizingPlayer;
 
     Validator(char[][] board, boolean isKingWhite, boolean maximizingPlayer) {
-    this.isKingWhite = isKingWhite;
-    this.maximizingPlayer = maximizingPlayer;
-    char king = isKingWhite ? 'k' : 'K';
-    for (int i = 0; i < 8; i++)
-        for (int j = 0; j < 8; j++)
-            if (board[i][j] == king) {
-                kingRow = i;
-                kingCol = j;
-                return;
-            }
+        this.isKingWhite = isKingWhite;
+        this.maximizingPlayer = maximizingPlayer;
+        char king = isKingWhite ? 'k' : 'K';
+        for (int i = 0; i < 8; i++)
+            for (int j = 0; j < 8; j++)
+                if (board[i][j] == king) {
+                    kingRow = i;
+                    kingCol = j;
+                    return;
+                }
     }
 
-        public boolean isKingInCheck(char[][] board) {
+    public boolean isKingInCheck(char[][] board) {
         //up, down, left, right, ur, ul, dr, dl, knight
-        char pawn, bishop, knight, rook, queen, king, piece;
+        // markedPawn is a pawn that has just moved two squares: it attacks like any other pawn
+        char pawn, markedPawn, bishop, knight, rook, queen, king, piece;
         if (isKingWhite) {
             pawn = 'P';
+            markedPawn = 'A';
             bishop = 'B';
             knight = 'N';
             rook = 'R';
@@ -32,6 +34,7 @@ class Validator {
         }
         else {
             pawn = 'p';
+            markedPawn = 'a';
             bishop = 'b';
             knight = 'n';
             rook = 'r';
@@ -84,7 +87,7 @@ class Validator {
             if (i == 1) {
                 if (piece == king)
                     return true;
-                else if (!maximizingPlayer && piece == pawn)
+                else if (!maximizingPlayer && (piece == pawn || piece == markedPawn))
                     return true;
             }
             if (piece == bishop || piece == queen)
@@ -98,7 +101,7 @@ class Validator {
             if (i == 1) {
                 if (piece == king)
                     return true;
-                else if (!maximizingPlayer && piece == pawn)
+                else if (!maximizingPlayer && (piece == pawn || piece == markedPawn))
                     return true;
             }
             if (piece == bishop || piece == queen)
@@ -112,7 +115,7 @@ class Validator {
             if (i == 1) {
                 if (piece == king)
                     return true;
-                else if (maximizingPlayer && piece == pawn)
+                else if (maximizingPlayer && (piece == pawn || piece == markedPawn))
                     return true;
             }
             if (piece == bishop || piece == queen)
@@ -126,7 +129,7 @@ class Validator {
             if (i == 1) {
                 if (piece == king)
                     return true;
-                else if (maximizingPlayer && piece == pawn)
+                else if (maximizingPlayer && (piece == pawn || piece == markedPawn))
                     return true;
             }
             if (piece == bishop || piece == queen)
