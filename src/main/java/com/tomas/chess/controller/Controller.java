@@ -123,19 +123,59 @@ public class Controller implements Runnable {
         return value;
     }
 
-    /** Captures first, so alpha-beta cuts off sooner. */
+    /**
+     * Captures first, most valuable victim first and, among equal victims, least valuable
+     * attacker first (MVV-LVA), so alpha-beta cuts off sooner. Quiet moves keep their order.
+     */
     private void orderMoves(char[][] position, ArrayList<Integer> moves) {
-        int switchWith = 0;
-        for (int i = 0; i < moves.size(); i += 4) {
-            if (moves.get(i + 2) >= 0 && position[moves.get(i + 2)][moves.get(i + 3)] != ChessBoard.EMPTY) {
-                if (switchWith != i)
-                    for (int j = i; j < i + 4; j++) {
-                        int temp = moves.get(switchWith + j - i);
-                        moves.set(switchWith + j - i, moves.get(j));
-                        moves.set(j, temp);
-                    }
-                switchWith += 4;
+        int n = moves.size() / 4;
+        int[] keys = new int[n];
+        int[] order = new int[n];
+        int captures = 0;
+        for (int m = 0; m < n; m++) {
+            int row2 = moves.get(4 * m + 2);
+            if (row2 < 0)
+                continue; // castling
+            char victim = position[row2][moves.get(4 * m + 3)];
+            if (victim == ChessBoard.EMPTY)
+                continue;
+            char attacker = position[moves.get(4 * m)][moves.get(4 * m + 1)];
+            int key = pieceValue(victim) * 16 - pieceValue(attacker) / 100;
+            // insertion sort by descending key; stable, and capture lists are short
+            int j = captures++;
+            while (j > 0 && keys[j - 1] < key) {
+                keys[j] = keys[j - 1];
+                order[j] = order[j - 1];
+                j--;
             }
+            keys[j] = key;
+            order[j] = m;
+        }
+        if (captures == 0)
+            return;
+
+        boolean[] isCapture = new boolean[n];
+        for (int k = 0; k < captures; k++)
+            isCapture[order[k]] = true;
+        int next = captures;
+        for (int m = 0; m < n; m++)
+            if (!isCapture[m])
+                order[next++] = m;
+
+        Integer[] old = moves.toArray(new Integer[0]);
+        for (int k = 0; k < n; k++)
+            for (int j = 0; j < 4; j++)
+                moves.set(4 * k + j, old[4 * order[k] + j]);
+    }
+
+    private static int pieceValue(char piece) {
+        switch (Character.toLowerCase(piece)) {
+            case 'p': case 'a': return 100;
+            case 'b': case 'n': return 300;
+            case 'r': return 500;
+            case 'q': return 900;
+            case 'k': return 1000;
+            default: return 0;
         }
     }
 
