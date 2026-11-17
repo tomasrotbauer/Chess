@@ -14,9 +14,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Picks the computer's move with iterative deepening: it searches 1 ply, then 2, 3, ...
  * until the time limit, and plays the best move from the deepest search that finished.
+ * Depths up to MIN_DEPTH are always finished, so a move can take longer than the time limit.
  */
 public class ComputerMove {
     private static final long TIME_LIMIT_NANOS = 3_000_000_000L;
+    /** Plies searched after the root move that are always completed, whatever the time limit. */
+    private static final int MIN_DEPTH = 5;
     private static final int MAX_DEPTH = 12;
 
     private final Controller controller;
@@ -60,8 +63,8 @@ public class ComputerMove {
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         try {
             for (int depth = 0; depth <= MAX_DEPTH; depth++) {
-                // The first iteration always runs to completion so there is always a move.
-                long iterationDeadline = depth == 0 ? Long.MAX_VALUE : deadline;
+                // Iterations up to MIN_DEPTH always run to completion, even past the time limit.
+                long iterationDeadline = depth <= MIN_DEPTH ? Long.MAX_VALUE : deadline;
                 AtomicInteger bestScore = new AtomicInteger(-Controller.INFINITY);
                 List<Controller> tasks = new ArrayList<>();
                 List<Future<?>> futures = new ArrayList<>();
@@ -93,7 +96,7 @@ public class ComputerMove {
 
                 best = bestMoves(tasks);
                 int score = best.get(0).getScore();
-                if (Math.abs(score) > Controller.MATE - 1000 || System.nanoTime() > deadline)
+                if (Math.abs(score) > Controller.MATE - 1000 || (depth >= MIN_DEPTH && System.nanoTime() > deadline))
                     break; // forced mate found either way, or out of time
             }
         } catch (InterruptedException e) {
