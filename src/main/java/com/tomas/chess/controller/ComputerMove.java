@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ComputerMove {
     private static final long TIME_LIMIT_NANOS = 3_000_000_000L;
     /** Plies searched after the root move that are always completed, whatever the time limit. */
-    private static final int MIN_DEPTH = 6;
+    private static final int MIN_DEPTH = 5;
     private static final int MAX_DEPTH = 12;
 
     private final Controller controller;
